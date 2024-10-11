@@ -1,13 +1,15 @@
 package middleware
 
 import (
+	"boilerplate/internal/security"
+	"boilerplate/internal/usecase"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
-	"net/http"
-	"strings"
 )
 
-func NewAuth() fiber.Handler {
+func NewAuth(userUserCase *usecase.UserUseCase) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		bearerToken := c.Get(fiber.HeaderAuthorization, "NOT_FOUND")
 		if bearerToken == "NOT_FOUND" {
@@ -21,30 +23,27 @@ func NewAuth() fiber.Handler {
 			return fiber.ErrUnauthorized
 		}
 
-		token := strings.TrimPrefix(bearerToken, prefix)
-		log.Info(token)
+		// decrypt token
+		tokenPlain, err := security.Decrypt(strings.TrimPrefix(bearerToken, prefix))
+		if err != nil {
+			log.Errorf("error decrypt token %v", err)
+			return fiber.ErrUnauthorized
+		}
+
+		// verify token
+		claims, ok := security.VerifyToken(*tokenPlain)
+		if !ok {
+			log.Warnf("faild varify token %v", err)
+			return fiber.ErrUnauthorized
+		}
+
+		auth, err := userUserCase.Verify(claims.Subject)
+		if err != nil {
+			return fiber.ErrUnauthorized
+		}
+
+		c.Locals("auth", auth)
 
 		return c.Next()
 	}
-}
-
-func AuthMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			log.Error("auth header is null or blank")
-			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte("Unauthorized"))
-			return
-		}
-
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			log.Errorf("auth header is invalid: %v", authHeader)
-			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = w.Write([]byte("Unauthorized"))
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }

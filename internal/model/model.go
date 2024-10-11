@@ -3,7 +3,6 @@ package model
 import (
 	"fmt"
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
 )
 
 type ApiResponse[T any] struct {
@@ -39,14 +38,17 @@ func (r *ApiResponse[T]) SuccessWithPaging(message string, data T, pageMetaData 
 	return r
 }
 
-func (r *ApiResponse[T]) BadRequest(c *fiber.Ctx, error error) *ApiResponse[T] {
+func (r *ApiResponse[T]) BadRequest(error error) *ApiResponse[T] {
 	var errors []string
 
-	for _, er := range error.(validator.ValidationErrors) {
-		errors = append(errors, GenerateCustomMessage(er))
+	if ValidationErrors, ok := error.(validator.ValidationErrors); ok {
+		for _, er := range ValidationErrors {
+			errors = append(errors, GenerateCustomMessage(er))
+		}
+	} else {
+		errors = append(errors, error.Error())
 	}
 
-	c.Status(400)
 	r.Code = 400
 	r.Status = "BAD_REQUEST"
 	r.Message = errors[0]
@@ -54,8 +56,7 @@ func (r *ApiResponse[T]) BadRequest(c *fiber.Ctx, error error) *ApiResponse[T] {
 	return r
 }
 
-func (r *ApiResponse[T]) NotFound(c *fiber.Ctx, message string) *ApiResponse[T] {
-	c.Status(404)
+func (r *ApiResponse[T]) NotFound(message string) *ApiResponse[T] {
 	r.Code = 404
 	r.Status = "NOT_FOUND"
 	r.Message = message

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"boilerplate/internal/entiity"
+
 	"gorm.io/gorm"
 )
 
@@ -13,11 +14,12 @@ func NewUserRepository() *UserRepository {
 	return &UserRepository{}
 }
 
-func (r *UserRepository) Create(db *gorm.DB, user *entiity.User) error {
-	err := db.Create(user).Error
-	if err != nil {
-		return err
+func (r *UserRepository) FindByUsername(db *gorm.DB, username string) (*entiity.User, error) {
+	user := new(entiity.User)
+	result := db.Model(&entiity.User{Username: username}).Find(&user)
+	if result.Error != nil {
+		return nil, result.Error
 	}
 
-	return nil
+	return user, nil
 }

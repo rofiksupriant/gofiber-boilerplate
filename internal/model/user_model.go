@@ -17,3 +17,9 @@ type CreateUserRequest struct {
 	Password string `json:"password" validate:"required,max=50"`
 	Name     string `json:"name" validate:"required,max:100"`
 }
+
+type UserResponse struct {
+	Username string `json:"username"`
+	Role     string `json:"role"`
+	Avatar   string `json:"avatar"`
+}
