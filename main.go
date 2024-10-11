@@ -2,10 +2,14 @@ package main
 
 import (
 	"boilerplate/internal/config"
+	"boilerplate/internal/http"
+	"boilerplate/internal/middleware"
+	"boilerplate/internal/model"
+	"boilerplate/internal/repository"
+	"boilerplate/internal/usecase"
 	"embed"
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
-	"github.com/pressly/goose/v3"
-	"log"
 )
 
 //go:embed db/migrations/*.sql
@@ -14,26 +18,26 @@ var embedMigrations embed.FS
 func main() {
 	app := fiber.New()
 	db := config.NewDB() //gorm
-	s, err := db.DB.DB()
-	if err != nil {
-		log.Fatalf("failed to get *sql.DB from gorm: %v", err)
-	}
-	sqlDB := s // *sql.DB
+	db.Migrate(&embedMigrations)
 
-	// goose embed migrations
-	goose.SetBaseFS(embedMigrations)
-	if err := goose.SetDialect("postgres"); err != nil {
-		log.Fatalf("failed to set dialect: %v", err)
-	}
-	if err := goose.Up(sqlDB, "db/migrations"); err != nil {
-		log.Fatalf("migrations failed: %v", err)
-	}
+	app.Get("/test", func(c *fiber.Ctx) error {
+		res := model.ApiResponse[string]{}
+		res.NotFound(c, "not found")
+		return c.JSON(res)
+	})
 
-	app.Get("/", func(ctx *fiber.Ctx) error {
+	useCase := usecase.NewUserUseCase(db.DB, validator.New(), repository.NewUserRepository())
+	controller := http.NewUserController(useCase)
+
+	app.Post("/login", controller.Login)
+
+	secured := app.Group("secured")
+	secured.Use(middleware.NewAuth())
+	secured.Get("/hello", func(ctx *fiber.Ctx) error {
 		return ctx.SendString("Hello World")
 	})
 
-	app.Get("/:name", func(ctx *fiber.Ctx) error {
+	secured.Get("/hello/:name", func(ctx *fiber.Ctx) error {
 		name := ctx.Params("name")
 		return ctx.SendString("Hello " + name)
 	})
